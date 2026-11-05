@@ -1,0 +1,159 @@
+
+# Train Booking and Reservation System
+
+## Project Description
+
+The Train Booking and Reservation System is a DBMS-based
+project developed using C++ and MySQL.
+
+The main objective of this project is to manage railway
+reservation operations in a simple and efficient way.
+
+It allows users to search for trains, check seat availability,
+book tickets, cancel reservations, and view booking details.
+
+MySQL is used to store and manage train, passenger, and
+reservation information.
+
+## Features
+
+- View all available trains.
+- Search trains by source and destination.
+- Book train tickets.
+- Check seat availability.
+- Generate unique booking IDs.
+- Cancel train reservations.
+- View passenger booking details.
+- Update seat availability automatically.
+- Store information permanently in MySQL.
+
+## Technologies Used
+
+- C++
+- MySQL
+- SQL
+- MySQL Connector/C++
+- DBMS concepts
+- File-free database storage
+
+## Database Tables
+
+### 1. Trains
+
+Stores train information.
+
+- train_id (Primary Key)
+- train_name
+- source
+- destination
+- total_seats
+- available_seats
+
+### 2. Passengers
+
+Stores passenger information.
+
+- passenger_id (Primary Key)
+- name
+- age
+- gender
+
+### 3. Reservations
+
+Stores booking information.
+
+- booking_id (Primary Key)
+- passenger_id (Foreign Key)
+- train_id (Foreign Key)
+- journey_date
+- seats_booked
+- status
+
+## Project Structure
+
+Train-Booking-System/
+|
+|-- main.cpp
+|-- database.sql
+|-- README.md
+|-- .gitignore
+
+## Installation and Setup
+
+### Step 1: Install MySQL
+
+Install MySQL Server and MySQL Workbench.
+
+### Step 2: Create Database
+
+Open MySQL Workbench and execute the SQL code
+provided in database.sql.
+
+### Step 3: Install MySQL Connector/C++
+
+Install a compatible MySQL Connector/C++ package.
+
+Configure the compiler with the connector's
+include directories and library directories.
+
+### Step 4: Configure Database Credentials
+
+Update the following details in main.cpp:
+
+DB_USER = "root";
+DB_PASSWORD = "YOUR_MYSQL_PASSWORD";
+
+### Step 5: Compile the Program
+
+Configure the connector libraries for your environment,
+then compile main.cpp using your C++ compiler.
+
+### Step 6: Run the Application
+
+Run the generated executable.
+
+## How to Use
+
+1. Start the application.
+2. Select View All Trains.
+3. Search for a train using source and destination.
+4. Enter passenger details.
+5. Book the required number of seats.
+6. Note the generated booking ID.
+7. Cancel tickets using the booking ID if required.
+8. View booking details.
+
+## DBMS Concepts Used
+
+- Primary Keys
+- Foreign Keys
+- SQL Queries
+- Database Relationships
+- Joins
+- Constraints
+- Transactions
+- Prepared Statements
+- Data Integrity
+
+## Future Enhancements
+
+- Admin login and passenger login.
+- Graphical user interface.
+- Online payment integration.
+- Train schedule management.
+- PNR status checking.
+- Waiting list management.
+- Ticket printing.
+- Email and SMS notifications.
+
+## Author
+
+Your Name
+
+## Project Type
+
+College DBMS Mini Project
+
+## License
+
+This project is intended for educational purposes.
