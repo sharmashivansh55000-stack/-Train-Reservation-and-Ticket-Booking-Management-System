@@ -1,0 +1,404 @@
+
+CREATE DATABASE TrainReservationDB;
+
+USE TrainReservationDB;
+
+-- Train table
+CREATE TABLE Trains (
+    train_id INT AUTO_INCREMENT PRIMARY KEY,
+    train_name VARCHAR(100) NOT NULL,
+    source VARCHAR(100) NOT NULL,
+    destination VARCHAR(100) NOT NULL,
+    total_seats INT NOT NULL,
+    available_seats INT NOT NULL
+);
+
+-- Passenger table
+CREATE TABLE Passengers (
+    passenger_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    age INT NOT NULL,
+    gender VARCHAR(10) NOT NULL
+);
+
+-- Reservation table
+CREATE TABLE Reservations (
+    booking_id INT AUTO_INCREMENT PRIMARY KEY,
+    passenger_id INT NOT NULL,
+    train_id INT NOT NULL,
+    journey_date DATE NOT NULL,
+    seats_booked INT NOT NULL,
+    status VARCHAR(20) DEFAULT 'CONFIRMED',
+
+    FOREIGN KEY (passenger_id)
+    REFERENCES Passengers(passenger_id),
+
+    FOREIGN KEY (train_id)
+    REFERENCES Trains(train_id),
+
+    CHECK (seats_booked > 0)
+);
+
+-- Sample train records
+INSERT INTO Trains
+(train_name, source, destination, total_seats, available_seats)
+VALUES
+('Shatabdi Express', 'Delhi', 'Chandigarh', 100, 100),
+('Rajdhani Express', 'Delhi', 'Mumbai', 150, 150),
+('Duronto Express', 'Mumbai', 'Pune', 120, 120),
+('Vande Bharat', 'Delhi', 'Jaipur', 80, 80);
+
+-- Display trains
+SELECT * FROM Trains;
+#include <iostream>
+#include <string>
+#include <memory>
+#include <limits>
+#include <mysql_driver.h>
+#include <mysql_connection.h>
+#include <cppconn/statement.h>
+#include <cppconn/prepared_statement.h>
+#include <cppconn/resultset.h>
+#include <cppconn/exception.h>
+
+using namespace std;
+
+const string DB_USER = "root";
+const string DB_PASSWORD = "YOUR_MYSQL_PASSWORD";
+
+sql::Connection* connectDB() {
+    sql::mysql::MySQL_Driver* driver =
+        sql::mysql::get_mysql_driver_instance();
+
+    sql::Connection* con =
+        driver->connect("tcp://127.0.0.1:3306",
+                        DB_USER, DB_PASSWORD);
+
+    con->setSchema("TrainReservationDB");
+    return con;
+}
+
+// Display all trains
+void viewTrains(sql::Connection* con) {
+    unique_ptr<sql::Statement> stmt(con->createStatement());
+
+    unique_ptr<sql::ResultSet> res(
+        stmt->executeQuery("SELECT * FROM Trains"));
+
+    cout << "\n----- AVAILABLE TRAINS -----\n";
+
+    while (res->next()) {
+        cout << "\nTrain ID: " << res->getInt("train_id");
+        cout << "\nTrain Name: " << res->getString("train_name");
+        cout << "\nSource: " << res->getString("source");
+        cout << "\nDestination: " << res->getString("destination");
+        cout << "\nAvailable Seats: "
+             << res->getInt("available_seats") << "\n";
+    }
+}
+
+// Search train
+void searchTrain(sql::Connection* con) {
+    string source, destination;
+
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    cout << "Enter source: ";
+    getline(cin, source);
+
+    cout << "Enter destination: ";
+    getline(cin, destination);
+
+    unique_ptr<sql::PreparedStatement> pstmt(
+        con->prepareStatement(
+            "SELECT * FROM Trains "
+            "WHERE source = ? AND destination = ?"));
+
+    pstmt->setString(1, source);
+    pstmt->setString(2, destination);
+
+    unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+
+    cout << "\n----- SEARCH RESULTS -----\n";
+
+    bool found = false;
+
+    while (res->next()) {
+        found = true;
+
+        cout << "\nTrain ID: " << res->getInt("train_id");
+        cout << "\nName: " << res->getString("train_name");
+        cout << "\nAvailable Seats: "
+             << res->getInt("available_seats") << "\n";
+    }
+
+    if (!found)
+        cout << "No trains found.\n";
+}
+
+// Book ticket
+void bookTicket(sql::Connection* con) {
+    int trainID, age, seats;
+    string name, gender, journeyDate;
+
+    cout << "\nEnter Train ID: ";
+    cin >> trainID;
+
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    cout << "Enter Passenger Name: ";
+    getline(cin, name);
+
+    cout << "Enter Age: ";
+    cin >> age;
+
+    cout << "Enter Gender: ";
+    cin >> gender;
+
+    cout << "Enter Journey Date (YYYY-MM-DD): ";
+    cin >> journeyDate;
+
+    cout << "Enter Number of Seats: ";
+    cin >> seats;
+
+    if (age <= 0 || age > 120 || seats <= 0) {
+        cout << "Invalid passenger details or seat count.\n";
+        return;
+    }
+
+    try {
+        con->setAutoCommit(false);
+
+        unique_ptr<sql::PreparedStatement> check(
+            con->prepareStatement(
+                "SELECT available_seats FROM Trains "
+                "WHERE train_id = ? FOR UPDATE"));
+
+        check->setInt(1, trainID);
+
+        unique_ptr<sql::ResultSet> result(check->executeQuery());
+
+        if (!result->next()) {
+            cout << "Train not found.\n";
+            con->rollback();
+            con->setAutoCommit(true);
+            return;
+        }
+
+        if (result->getInt("available_seats") < seats) {
+            cout << "Not enough seats available.\n";
+            con->rollback();
+            con->setAutoCommit(true);
+            return;
+        }
+
+        unique_ptr<sql::PreparedStatement> passenger(
+            con->prepareStatement(
+                "INSERT INTO Passengers(name, age, gender) "
+                "VALUES (?, ?, ?)"));
+
+        passenger->setString(1, name);
+        passenger->setInt(2, age);
+        passenger->setString(3, gender);
+        passenger->executeUpdate();
+
+        unique_ptr<sql::Statement> stmt(con->createStatement());
+
+        unique_ptr<sql::ResultSet> idResult(
+            stmt->executeQuery("SELECT LAST_INSERT_ID()"));
+
+        idResult->next();
+        int passengerID = idResult->getInt(1);
+
+        unique_ptr<sql::PreparedStatement> reservation(
+            con->prepareStatement(
+                "INSERT INTO Reservations "
+                "(passenger_id, train_id, journey_date, "
+                "seats_booked, status) "
+                "VALUES (?, ?, ?, ?, 'CONFIRMED')"));
+
+        reservation->setInt(1, passengerID);
+        reservation->setInt(2, trainID);
+        reservation->setString(3, journeyDate);
+        reservation->setInt(4, seats);
+        reservation->executeUpdate();
+
+        unique_ptr<sql::ResultSet> bookingResult(
+            stmt->executeQuery("SELECT LAST_INSERT_ID()"));
+
+        bookingResult->next();
+        int bookingID = bookingResult->getInt(1);
+
+        unique_ptr<sql::PreparedStatement> update(
+            con->prepareStatement(
+                "UPDATE Trains SET available_seats = "
+                "available_seats - ? WHERE train_id = ?"));
+
+        update->setInt(1, seats);
+        update->setInt(2, trainID);
+        update->executeUpdate();
+
+        con->commit();
+        con->setAutoCommit(true);
+
+        cout << "\nTicket booked successfully!";
+        cout << "\nBooking ID: " << bookingID << "\n";
+
+    } catch (sql::SQLException &e) {
+        con->rollback();
+        con->setAutoCommit(true);
+        cout << "Booking failed: " << e.what() << "\n";
+    }
+}
+
+// Cancel reservation
+void cancelTicket(sql::Connection* con) {
+    int bookingID;
+
+    cout << "\nEnter Booking ID: ";
+    cin >> bookingID;
+
+    try {
+        con->setAutoCommit(false);
+
+        unique_ptr<sql::PreparedStatement> check(
+            con->prepareStatement(
+                "SELECT train_id, seats_booked FROM Reservations "
+                "WHERE booking_id = ? AND status = 'CONFIRMED' "
+                "FOR UPDATE"));
+
+        check->setInt(1, bookingID);
+
+        unique_ptr<sql::ResultSet> res(check->executeQuery());
+
+        if (!res->next()) {
+            cout << "Active booking not found.\n";
+            con->rollback();
+            con->setAutoCommit(true);
+            return;
+        }
+
+        int trainID = res->getInt("train_id");
+        int seats = res->getInt("seats_booked");
+
+        unique_ptr<sql::PreparedStatement> update(
+            con->prepareStatement(
+                "UPDATE Trains SET available_seats = "
+                "available_seats + ? WHERE train_id = ?"));
+
+        update->setInt(1, seats);
+        update->setInt(2, trainID);
+        update->executeUpdate();
+
+        unique_ptr<sql::PreparedStatement> cancel(
+            con->prepareStatement(
+                "UPDATE Reservations SET status = 'CANCELLED' "
+                "WHERE booking_id = ?"));
+
+        cancel->setInt(1, bookingID);
+        cancel->executeUpdate();
+
+        con->commit();
+        con->setAutoCommit(true);
+
+        cout << "Ticket cancelled successfully!\n";
+
+    } catch (sql::SQLException &e) {
+        con->rollback();
+        con->setAutoCommit(true);
+        cout << "Cancellation failed: " << e.what() << "\n";
+    }
+}
+
+// View bookings
+void viewBookings(sql::Connection* con) {
+    unique_ptr<sql::Statement> stmt(con->createStatement());
+
+    unique_ptr<sql::ResultSet> res(
+        stmt->executeQuery(
+            "SELECT r.booking_id, p.name, t.train_name, "
+            "r.journey_date, r.seats_booked, r.status "
+            "FROM Reservations r "
+            "JOIN Passengers p "
+            "ON r.passenger_id = p.passenger_id "
+            "JOIN Trains t ON r.train_id = t.train_id "
+            "ORDER BY r.booking_id"));
+
+    cout << "\n----- BOOKING DETAILS -----\n";
+
+    while (res->next()) {
+        cout << "\nBooking ID: " << res->getInt("booking_id");
+        cout << "\nPassenger: " << res->getString("name");
+        cout << "\nTrain: " << res->getString("train_name");
+        cout << "\nJourney Date: " << res->getString("journey_date");
+        cout << "\nSeats: " << res->getInt("seats_booked");
+        cout << "\nStatus: " << res->getString("status") << "\n";
+    }
+}
+
+int main() {
+    sql::Connection* con = nullptr;
+
+    try {
+        con = connectDB();
+
+        int choice;
+
+        do {
+            cout << "\n==============================";
+            cout << "\n TRAIN BOOKING SYSTEM";
+            cout << "\n==============================";
+            cout << "\n1. View All Trains";
+            cout << "\n2. Search Train";
+            cout << "\n3. Book Ticket";
+            cout << "\n4. Cancel Ticket";
+            cout << "\n5. View Bookings";
+            cout << "\n6. Exit";
+            cout << "\nEnter Choice: ";
+
+            cin >> choice;
+
+            switch (choice) {
+                case 1:
+                    viewTrains(con);
+                    break;
+
+                case 2:
+                    searchTrain(con);
+                    break;
+
+                case 3:
+                    bookTicket(con);
+                    break;
+
+                case 4:
+                    cancelTicket(con);
+                    break;
+
+                case 5:
+                    viewBookings(con);
+                    break;
+
+                case 6:
+                    cout << "Thank you for using Train Booking System!\n";
+                    break;
+
+                default:
+                    cout << "Invalid choice!\n";
+            }
+
+        } while (choice != 6);
+
+        delete con;
+
+    } catch (sql::SQLException &e) {
+        cout << "Database connection error: " << e.what() << "\n";
+
+        if (con != nullptr)
+            delete con;
+
+        return 1;
+    }
+
+    return 0;
+}
